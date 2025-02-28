@@ -10,7 +10,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions, // Thêm intent này
+    GatewayIntentBits.GuildMessageReactions, // Đảm bảo có intent này
   ],
   partials: ['MESSAGE', 'CHANNEL', 'REACTION'], // Cho phép bot xử lý reaction của message chưa được cache
 });
@@ -24,11 +24,16 @@ client.once("ready", () => {
 async function playQueue(guildId) {
   const queue = queueMap.get(guildId);
   if (!queue) return;
+  // Nếu đã hết bài trong queue
   if (queue.currentIndex >= queue.tracks.length) {
-    queue.textChannel.send("Queue đã kết thúc!");
-    queue.connection.destroy();
-    queueMap.delete(guildId);
-    return;
+    if (queue.loop) {
+      queue.currentIndex = 0; // Nếu loop toàn bộ được bật, quay lại bài đầu tiên
+    } else {
+      queue.textChannel.send("Queue đã kết thúc!");
+      queue.connection.destroy();
+      queueMap.delete(guildId);
+      return;
+    }
   }
   const track = queue.tracks[queue.currentIndex];
   try {
@@ -64,8 +69,12 @@ async function playQueue(guildId) {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   
-  if (message.content === "Phú có béo không?") {
-    return message.channel.send("Béo hơn con lợn!");
+  if (message.content === "amogus") {
+    return message.channel.send("sus");
+  }
+
+  if (message.content === "ping?") {
+    return message.channel.send("pong!");
   }
   
   const prefix = "sen!";
@@ -75,18 +84,22 @@ client.on("messageCreate", async (message) => {
   const command = args.shift().toLowerCase();
   const guildId = message.guild.id;
 
-  if (command === "info") {
-    const infoMessage = `
+ if (command === "info") {
+  const infoMessage = `
 **Danh sách các lệnh có thể dùng:**
-+ Lệnh chạy nhạc:
-- \`sen!p <soundcloud_url hoặc youtube_url>\` hoặc \`sen!play <soundcloud_url hoặc youtube_url>\`: Thêm bài hát vào danh sách và phát nhạc. Nếu không cung cấp URL, bot sẽ tiếp tục phát nếu đang tạm dừng.
-- \`sen!pause\`: Tạm dừng bài hát đang phát.
-- \`sen!s\` hoặc \`sen!stop\`: Dừng phát nhạc và xóa danh sách.
-- \`sen!q\` hoặc \`sen!queue\`: Hiển thị danh sách các bài hát trong queue (hiển thị 10 bài một trang, chuyển trang bằng reaction).
++ **Phát nhạc:** 
+- \`sen!p / sen!play <soundcloud_url hoặc youtube_url>\`: Thêm bài hát vào danh sách và phát nhạc (nếu không cung cấp URL, bot sẽ tiếp tục phát nếu bị tạm dừng).
+- \`sen!pause / sen!unpause\`: Tạm dừng và tiếp tục phát bài hát.
+- \`sen!s / sen!stop\`: Dừng phát nhạc và xóa danh sách.
+- \`sen!q / sen!queue\`: Hiển thị danh sách các bài hát trong queue.
 - \`sen!jump <number>\`: Nhảy đến bài hát thứ <number> trong queue.
-    `;
-    return message.channel.send(infoMessage);
-  }
+- \`sen!skip [<number>]\`: Skip bài hiện tại (hoặc skip <number> bài).
+- \`sen!loop / sen!unloop\`: Bật/Tắt chế độ loop cho toàn bộ queue.
+- \`sen!looptrack / sen!unlooptrack\`: Bật/Tắt chế độ loop cho bài hát đang chạy.
+  `;
+  return message.channel.send(infoMessage);
+}
+
   
   if (["p", "play"].includes(command)) {
     if (args.length === 0) {
@@ -104,7 +117,6 @@ client.on("messageCreate", async (message) => {
     }
     
     const url = args[0];
-    // Kiểm tra nếu URL không hợp lệ cho cả SoundCloud và YouTube
     if (!url || (!scdl.isValidUrl(url) && !ytdl.validateURL(url))) {
       return message.channel.send("Link gì thế này? (T chỉ hỗ trợ SoundCloud và YouTube!)");
     }
@@ -130,13 +142,17 @@ client.on("messageCreate", async (message) => {
           player: player,
           tracks: [],
           currentIndex: 0,
-          jumped: false // Thêm flag để đánh dấu khi sử dụng lệnh jump
+          jumped: false,
+          loop: false,      // Loop toàn bộ queue tắt mặc định
+          loopTrack: false, // Loop bài đang chạy tắt mặc định
         });
         player.on(AudioPlayerStatus.Idle, () => {
           const queue = queueMap.get(guildId);
           if (queue) {
-            // Nếu có nhảy bài thì không tăng currentIndex tự động
-            if (queue.jumped) {
+            // Nếu bật loop track, giữ nguyên currentIndex để phát lại bài hiện tại
+            if (queue.loopTrack) {
+              // Không tăng currentIndex
+            } else if (queue.jumped) {
               queue.jumped = false;
             } else {
               queue.currentIndex++;
@@ -167,14 +183,12 @@ client.on("messageCreate", async (message) => {
       } else {
         let trackInfo = { title: url };
         if (scdl.isValidUrl(url)) {
-          // Lấy thông tin từ SoundCloud
           try {
             trackInfo = await scdl.getInfo(url);
           } catch {
             trackInfo = { title: url };
           }
         } else if (ytdl.validateURL(url)) {
-          // Lấy thông tin từ YouTube
           try {
             const info = await ytdl.getInfo(url);
             trackInfo = { title: info.videoDetails.title };
@@ -203,6 +217,21 @@ client.on("messageCreate", async (message) => {
         message.channel.send("Đã tạm dừng bài hát.");
       } else if (queue.player.state.status === AudioPlayerStatus.Paused) {
         message.channel.send("Bài hát đã được tạm dừng rồi.");
+      } else {
+        message.channel.send("Không có bài hát nào đang phát.");
+      }
+    } else {
+      message.channel.send("Không có nhạc nào trong queue.");
+    }
+  
+  } else if (command === "unpause") {
+    if (queueMap.has(guildId)) {
+      const queue = queueMap.get(guildId);
+      if (queue.player.state.status === AudioPlayerStatus.Paused) {
+        queue.player.unpause();
+        message.channel.send("Đã tiếp tục phát bài hát.");
+      } else if (queue.player.state.status === AudioPlayerStatus.Playing) {
+        message.channel.send("Bài hát đang được phát.");
       } else {
         message.channel.send("Không có bài hát nào đang phát.");
       }
@@ -258,12 +287,13 @@ client.on("messageCreate", async (message) => {
       try {
         await queueMsg.react("⬅️");
         await queueMsg.react("➡️");
+        await queueMsg.react("❗"); // Thêm emote chấm than
       } catch (error) {
         console.error("Không thể thêm reaction:", error);
       }
       
       const filter = (reaction, user) => {
-        return ["⬅️", "➡️"].includes(reaction.emoji.name) && user.id === message.author.id;
+        return ["⬅️", "➡️", "❗"].includes(reaction.emoji.name) && user.id === message.author.id;
       };
       
       const collector = queueMsg.createReactionCollector({ filter, time: 60000 });
@@ -279,6 +309,10 @@ client.on("messageCreate", async (message) => {
             currentPage--;
             queueMsg.edit({ embeds: [generateEmbed(currentPage)] });
           }
+        } else if (reaction.emoji.name === "❗") {
+          // Nhảy thẳng tới trang chứa bài đang phát
+          currentPage = Math.floor(queue.currentIndex / itemsPerPage);
+          queueMsg.edit({ embeds: [generateEmbed(currentPage)] });
         }
         reaction.users.remove(user.id).catch(console.error);
       });
@@ -293,11 +327,60 @@ client.on("messageCreate", async (message) => {
     if (isNaN(jumpNumber) || jumpNumber < 1 || jumpNumber > queue.tracks.length) {
       return message.channel.send("Số thứ tự không hợp lệ!");
     }
-    // Thiết lập currentIndex (chuyển từ 1-indexed sang 0-indexed)
     queue.currentIndex = jumpNumber - 1;
-    queue.jumped = true; // Đánh dấu đã nhảy để không tăng currentIndex trong idle event
-    queue.player.stop(); // Dừng bài hát hiện tại, sự kiện idle sẽ gọi playQueue
+    queue.jumped = true;
+    queue.player.stop();
     message.channel.send(`Đã nhảy tới bài thứ ${jumpNumber}: ${queue.tracks[jumpNumber - 1].title}`);
+  
+  } else if (command === "loop") {
+    if (!queueMap.has(guildId)) {
+      return message.channel.send("Không có nhạc trong queue!");
+    }
+    const queue = queueMap.get(guildId);
+    queue.loop = true;
+    message.channel.send("Đã bật chế độ loop cho queue.");
+  
+  } else if (command === "unloop") {
+    if (!queueMap.has(guildId)) {
+      return message.channel.send("Không có nhạc trong queue!");
+    }
+    const queue = queueMap.get(guildId);
+    queue.loop = false;
+    message.channel.send("Đã tắt chế độ loop cho queue.");
+  
+  } else if (command === "looptrack") {
+    if (!queueMap.has(guildId)) {
+      return message.channel.send("Không có nhạc trong queue!");
+    }
+    const queue = queueMap.get(guildId);
+    queue.loopTrack = true;
+    message.channel.send("Đã bật chế độ loop cho bài hát đang chạy.");
+  
+  } else if (command === "unlooptrack") {
+    if (!queueMap.has(guildId)) {
+      return message.channel.send("Không có nhạc trong queue!");
+    }
+    const queue = queueMap.get(guildId);
+    queue.loopTrack = false;
+    message.channel.send("Đã tắt chế độ loop cho bài hát đang chạy.");
+  
+  } else if (command === "skip") {
+    // Lệnh skip: nếu không có số thì skip 1 bài, nếu có số thì skip số bài đó
+    if (!queueMap.has(guildId)) {
+      return message.channel.send("Không có nhạc trong queue!");
+    }
+    const queue = queueMap.get(guildId);
+    let skipCount = 1;
+    if (args[0]) {
+      skipCount = parseInt(args[0]);
+      if (isNaN(skipCount) || skipCount < 1) {
+        return message.channel.send("Số bài skip không hợp lệ!");
+      }
+    }
+    queue.currentIndex += skipCount;
+    queue.jumped = true;
+    queue.player.stop();
+    message.channel.send(`Đã skip ${skipCount} bài.`);
   }
 });
 
