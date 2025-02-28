@@ -1,9 +1,8 @@
 require("dotenv").config();
 const { Client, GatewayIntentBits } = require("discord.js");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
-const scdl = require("soundcloud-downloader").default; // Import soundcloud-downloader
+const scdl = require("soundcloud-downloader").default;
 
-// Tạo client với các intents cần thiết
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -13,18 +12,15 @@ const client = new Client({
   ],
 });
 
-// Map lưu trữ queue cho từng guild
 const queueMap = new Map();
 
 client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
-// Hàm phát queue cho guild
 async function playQueue(guildId) {
   const queue = queueMap.get(guildId);
   if (!queue) return;
-  // Nếu hết bài hát trong queue thì dừng và xóa queue
   if (queue.currentIndex >= queue.tracks.length) {
     queue.textChannel.send("Queue đã kết thúc!");
     queue.connection.destroy();
@@ -53,7 +49,6 @@ async function playQueue(guildId) {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   
-  // Trả lời tin nhắn đặc biệt
   if (message.content === "Phú có béo không?") {
     return message.channel.send("Béo hơn con lợn!");
   }
@@ -65,7 +60,6 @@ client.on("messageCreate", async (message) => {
   const command = args.shift().toLowerCase();
   const guildId = message.guild.id;
 
-  // Lệnh info: hiển thị danh sách các lệnh có thể dùng
   if (command === "info") {
     const infoMessage = `
 **Danh sách các lệnh có thể dùng:**
@@ -78,9 +72,7 @@ client.on("messageCreate", async (message) => {
     return message.channel.send(infoMessage);
   }
   
-  // Lệnh chơi nhạc (alias: "p" và "play")
   if (["p", "play"].includes(command)) {
-    // Nếu không có URL được cung cấp, kiểm tra xem có bài nhạc đang bị tạm dừng không để tiếp tục phát
     if (args.length === 0) {
       if (queueMap.has(guildId)) {
         const queue = queueMap.get(guildId);
@@ -106,7 +98,6 @@ client.on("messageCreate", async (message) => {
     }
     
     try {
-      // Nếu guild chưa có queue, tạo mới và tham gia kênh thoại
       if (!queueMap.has(guildId)) {
         const connection = joinVoiceChannel({
           channelId: voiceChannel.id,
@@ -123,7 +114,6 @@ client.on("messageCreate", async (message) => {
           tracks: [],
           currentIndex: 0,
         });
-        // Khi track kết thúc, chuyển sang bài tiếp theo trong queue
         player.on(AudioPlayerStatus.Idle, () => {
           const queue = queueMap.get(guildId);
           if (queue) {
@@ -141,7 +131,6 @@ client.on("messageCreate", async (message) => {
       
       const queue = queueMap.get(guildId);
       
-      // Nếu URL là playlist (thường chứa "/sets/")
       if (url.includes("/sets/")) {
         const playlistInfo = await scdl.getSetInfo(url);
         if (!playlistInfo || !playlistInfo.tracks || playlistInfo.tracks.length === 0) {
@@ -154,7 +143,6 @@ client.on("messageCreate", async (message) => {
         queue.tracks.push(...newTracks);
         message.channel.send(`Đã thêm playlist: ${playlistInfo.title} với ${playlistInfo.tracks.length} bài hát vào danh sách.`);
       } else {
-        // Xử lý trường hợp single track
         let trackInfo;
         try {
           trackInfo = await scdl.getInfo(url);
@@ -165,7 +153,6 @@ client.on("messageCreate", async (message) => {
         message.channel.send(`Đã thêm bài hát: ${trackInfo.title} vào danh sách.`);
       }
       
-      // Nếu không có bài nào đang phát, bắt đầu queue
       if (queue.player.state.status !== AudioPlayerStatus.Playing) {
         playQueue(guildId);
       }
@@ -175,7 +162,6 @@ client.on("messageCreate", async (message) => {
       message.channel.send("Đã xảy ra lỗi khi xử lý lệnh.");
     }
   
-  // Lệnh tạm dừng nhạc: "sen!pause"
   } else if (command === "pause") {
     if (queueMap.has(guildId)) {
       const queue = queueMap.get(guildId);
@@ -191,7 +177,6 @@ client.on("messageCreate", async (message) => {
       message.channel.send("Không có nhạc nào trong queue.");
     }
   
-  // Lệnh dừng nhạc (alias: "s" và "stop")
   } else if (["s", "stop"].includes(command)) {
     if (queueMap.has(guildId)) {
       const queue = queueMap.get(guildId);
@@ -204,7 +189,6 @@ client.on("messageCreate", async (message) => {
       message.channel.send("Không có nhạc đang phát!");
     }
   
-  // Lệnh kiểm tra queue (alias: "q" và "queue")
   } else if (["q", "queue"].includes(command)) {
     if (queueMap.has(guildId)) {
       const queue = queueMap.get(guildId);
