@@ -1,8 +1,2 @@
-# .gitignore
-
-# Bỏ qua thư mục node_modules (tạo ra khi cài npm)
-node_modules/
-
-# Bỏ qua file .env (chứa token)
 .env
-
+node_modules/
