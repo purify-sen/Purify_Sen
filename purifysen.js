@@ -31,16 +31,16 @@ async function playQueue(guildId) {
   try {
     const stream = await scdl.download(track.url);
     if (!stream) {
-      queue.textChannel.send(Không thể tải stream cho bài hát: ${track.title});
+      queue.textChannel.send(`Không thể tải stream cho bài hát: ${track.title}`);
       queue.currentIndex++;
       return playQueue(guildId);
     }
     const resource = createAudioResource(stream);
     queue.player.play(resource);
-    queue.textChannel.send(Đang phát: ${track.title});
+    queue.textChannel.send(`Đang phát: ${track.title}`);
   } catch (error) {
     console.error(error);
-    queue.textChannel.send(Lỗi khi phát bài hát: ${track.title});
+    queue.textChannel.send(`Lỗi khi phát bài hát: ${track.title}`);
     queue.currentIndex++;
     playQueue(guildId);
   }
@@ -61,14 +61,14 @@ client.on("messageCreate", async (message) => {
   const guildId = message.guild.id;
 
   if (command === "info") {
-    const infoMessage = 
+    const infoMessage = `
 **Danh sách các lệnh có thể dùng:**
 + Lệnh chạy nhạc:
-- \sen!p <soundcloud_url>\ hoặc \sen!play <soundcloud_url>\: Thêm bài hát vào danh sách và phát nhạc. Nếu không cung cấp URL, bot sẽ tiếp tục phát nếu đang tạm dừng.
-- \sen!pause\: Tạm dừng bài hát đang phát.
-- \sen!s\ hoặc \sen!stop\: Dừng phát nhạc và xóa danh sách.
-- \sen!q\ hoặc \sen!queue\: Hiển thị danh sách các bài hát trong queue.
-    ;
+- \`sen!p <soundcloud_url>\` hoặc \`sen!play <soundcloud_url>\`: Thêm bài hát vào danh sách và phát nhạc. Nếu không cung cấp URL, bot sẽ tiếp tục phát nếu đang tạm dừng.
+- \`sen!pause\`: Tạm dừng bài hát đang phát.
+- \`sen!s\` hoặc \`sen!stop\`: Dừng phát nhạc và xóa danh sách.
+- \`sen!q\` hoặc \`sen!queue\`: Hiển thị danh sách các bài hát trong queue.
+    `;
     return message.channel.send(infoMessage);
   }
   
@@ -141,7 +141,7 @@ client.on("messageCreate", async (message) => {
           title: track.title,
         }));
         queue.tracks.push(...newTracks);
-        message.channel.send(Đã thêm playlist: ${playlistInfo.title} với ${playlistInfo.tracks.length} bài hát vào danh sách.);
+        message.channel.send(`Đã thêm playlist: ${playlistInfo.title} với ${playlistInfo.tracks.length} bài hát vào danh sách.`);
       } else {
         let trackInfo;
         try {
@@ -150,7 +150,7 @@ client.on("messageCreate", async (message) => {
           trackInfo = { title: url };
         }
         queue.tracks.push({ url: url, title: trackInfo.title });
-        message.channel.send(Đã thêm bài hát: ${trackInfo.title} vào danh sách.);
+        message.channel.send(`Đã thêm bài hát: ${trackInfo.title} vào danh sách.`);
       }
       
       if (queue.player.state.status !== AudioPlayerStatus.Playing) {
@@ -198,9 +198,9 @@ client.on("messageCreate", async (message) => {
         let queueMessage = "Queue hiện tại:\n";
         queue.tracks.forEach((track, index) => {
           if (index === queue.currentIndex) {
-            queueMessage += --> Now playing: ${track.title}\n;
+            queueMessage += `--> Now playing: ${track.title}\n`;
           } else {
-            queueMessage += ${index + 1}. ${track.title}\n;
+            queueMessage += `${index + 1}. ${track.title}\n`;
           }
         });
         message.channel.send(queueMessage);
@@ -212,4 +212,5 @@ client.on("messageCreate", async (message) => {
 });
 
 client.login(process.env.TOKEN);
+
 
