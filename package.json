@@ -4,8 +4,11 @@
     "@google/generative-ai": "^0.22.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
+    "node-fetch": "^2.7.0",
     "openai": "^4.86.1",
     "soundcloud-downloader": "^1.0.0",
+    "spotify-url-info": "^3.2.18",
+    "yt-search": "^2.12.1",
     "ytdl-core": "^4.11.5"
   }
 }
